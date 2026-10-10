@@ -12,7 +12,8 @@
 //   { action: "message", code, chat, id, token? }
 //        a message was sent (orgs/{code}/chats/{chat}/messages/{id}); it's read
 //        from the database and sent to the other person, or to everyone in the
-//        organization but the sender (Firebase topics the app joins:
+//        organization but the sender; photos and voice notes say so instead
+//        of text (Firebase topics the app joins:
 //        o_{code} for the organization, p_{code}_{name hash} for the person)
 //
 // Matching runs on every phone, so several may report the same office:
@@ -86,12 +87,18 @@ export async function onRequestPost({ request, env }) {
       if (msg.status !== 200) return json({ error: "No such message." }, 404);
       const f = msg.data.fields || {};
       const from = (f.from && f.from.stringValue) || "", text = (f.text && f.text.stringValue) || "";
+      const kind = (f.kind && f.kind.stringValue) || "";
       const at = Date.parse((f.at && f.at.timestampValue) || "");
       // Only new messages, and each one once.
-      if (!from || !text || !(Date.now() - at < 10 * 60 * 1000)) return json({ ok: true, sent: 0 });
+      if (!from || !(text || kind) || !(Date.now() - at < 10 * 60 * 1000)) return json({ ok: true, sent: 0 });
       const created = await firestore(env, "POST", `pushSent?documentId=${encodeURIComponent(`msg_${code}_${chat}_${id}`)}`, { fields: toFields({ sentAt: new Date() }) });
       if (created.status !== 200) return json({ ok: true, sent: 0 });
-      const body = text.length > 180 ? `${text.slice(0, 179)}…` : text;
+      // A photo or voice note has no text: say what it is, in the phone's language.
+      const short = text.length > 180 ? `${text.slice(0, 179)}…` : text;
+      const bodyFor = (lang) => kind === "image" ? "📷 " + (short || (lang === "es" ? "Envió una foto" : "Sent a photo"))
+        : kind === "voice" ? (lang === "es" ? "Envió un mensaje de voz" : "Sent a voice message")
+        : short;
+      const body = bodyFor("en");
       const data = { code, chat };
 
       if (chat === "all") {
@@ -103,7 +110,7 @@ export async function onRequestPost({ request, env }) {
         // Topic sends unavailable: phone by phone, as many as one request allows.
         let n = 0;
         for (const t of (await tokensFor(env, code, null)).filter((t) => t.name !== from && t.token !== token).slice(0, 40)) {
-          if (await send(env, { token: t.token }, title, body, data, chat)) n++;
+          if (await send(env, { token: t.token }, title, bodyFor(t.lang), data, chat)) n++;
         }
         return json({ ok: true, sent: n });
       }
@@ -116,7 +123,7 @@ export async function onRequestPost({ request, env }) {
       for (const name of names.filter((x) => x !== from)) {
         for (const t of await tokensFor(env, code, name)) {
           if (t.token === token) continue;
-          if (await send(env, { token: t.token }, from, body, data, chat)) n++;
+          if (await send(env, { token: t.token }, from, bodyFor(t.lang), data, chat)) n++;
         }
       }
       return json({ ok: true, sent: n });
