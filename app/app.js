@@ -48,6 +48,7 @@ const I = {
   doc: svg('<path d="M6 3.5h8l4.5 4.5v12a1 1 0 01-1 1H6a1 1 0 01-1-1v-15.5a1 1 0 011-1z"/><path d="M14 3.5V8h4.5M8.5 12.5h7M8.5 16h7"/>'),
   shield: svg('<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12l2.2 2.2 4.3-4.4"/>'),
   instagram: svg('<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/>'),
+  threads: svg('<circle cx="12" cy="12" r="3.6"/><path d="M15.6 12v1.4a2.6 2.6 0 0 0 5.2 0V12a8.8 8.8 0 1 0-3.5 7" stroke-linecap="round"/>'),
 };
 
 const S = { code: null, org: null, store: null, version: null, photos: {}, tab: "board", location: null, weekOffset: 0, picked: null, timer: null, orgTimer: null, pushing: false, shut: {}, expanded: new Set(), banner: null, myWaiting: null };
@@ -589,7 +590,7 @@ function settings() {
       [I.shield, "Privacy Policy", "../privacy/"],
     ].map(linkRow).join("")}</div>
     <div class="section-title" style="margin-top:28px;font-size:15px;color:var(--muted)">Follow Us</div>
-    <div class="card list">${linkRow([I.instagram, "Instagram", "https://www.instagram.com/officeswap/"])}</div>
+    <div class="card list">${linkRow([I.instagram, "Instagram", "https://www.instagram.com/officeswap/"]) + linkRow([I.threads, "Threads", "https://www.threads.com/@officeswap"])}</div>
     ${jpm ? "" : `<div class="section-title" style="margin-top:34px"></div><div class="card list"><button class="setting danger" id="st-delete">${I.trash}<span class="grow">Delete organization</span></button></div>
     <p class="foot">Permanently deletes ${esc(S.org.name)} for everyone who uses its access code: offices, schedule, waitlist and photos.${S.org.masterHash ? " Needs the master code." : ""}</p>`}`;
 }
