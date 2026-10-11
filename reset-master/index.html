@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Reset master code · OfficeSwap</title>
+<title>Reset admin code · OfficeSwap</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#ffffff">
@@ -41,28 +41,28 @@
     </section>
 
     <form id="form" hidden novalidate>
-      <h1>Set a new master code</h1>
+      <h1>Set a new admin code</h1>
       <p>For <b id="org-name">your organization</b>. You'll use it to remove offices or people, reset the data, or delete the organization.</p>
-      <label for="code">New master code</label>
+      <label for="code">New admin code</label>
       <input id="code" type="password" autocomplete="new-password" minlength="6" required>
-      <label for="confirm">Confirm new master code</label>
+      <label for="confirm">Confirm new admin code</label>
       <input id="confirm" type="password" autocomplete="new-password" minlength="6" required>
       <div class="err" id="form-err" role="alert"></div>
-      <button id="save" type="submit" disabled>Save master code</button>
+      <button id="save" type="submit" disabled>Save admin code</button>
     </form>
 
     <section id="done" hidden>
-      <h1 class="ok">Master code saved</h1>
-      <p>Go back to OfficeSwap and use your new master code. Every phone in your organization picks it up automatically.</p>
+      <h1 class="ok">Admin code saved</h1>
+      <p>Go back to OfficeSwap and use your new admin code. Every phone in your organization picks it up automatically.</p>
     </section>
   </div>
 </main>
 <script>
 (function () {
   // The link from the "I Forgot" email signs the owner in (proving they own
-  // the address on file), then saves a new master code. The database only
+  // the address on file), then saves a new admin code. The database only
   // accepts it from someone signed in to that organization's owner email.
-  // The master code is hashed here the same way the app does (PBKDF2-SHA256,
+  // The admin code is hashed here the same way the app does (PBKDF2-SHA256,
   // 120,000 rounds, random 16-byte salt); the code itself never leaves this page.
   var API_KEY = "AIzaSyBfpw5r8T2dMftpEPbaectPYpSRK_sG2tI";
   var PROJECT = "officeswap-uw3il";
@@ -127,7 +127,7 @@
       show("done");
     }).catch(function () {
       $("form-err").textContent = "Couldn't save it. This email may not be the organization's owner email, or the sign-in expired. Request a new link from the app.";
-      $("save").textContent = "Save master code"; check();
+      $("save").textContent = "Save admin code"; check();
     });
   });
 

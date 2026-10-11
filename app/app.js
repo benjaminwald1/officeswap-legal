@@ -101,7 +101,7 @@ function blockedMessage(b, name) {
     : `${name}'s OfficeSwap subscription has ended. Its offices and schedule are kept safe. Whoever set it up can renew at officeswap.co/account.`;
 }
 
-// ---------- master code (same PBKDF2 as the app) ----------
+// ---------- admin code (same PBKDF2 as the app) ----------
 
 async function masterMatches(code) {
   if (!S.org.masterHash || !S.org.masterSalt) return true;
@@ -114,8 +114,8 @@ async function masterMatches(code) {
 function askMaster(title, message, then) {
   openSheet(title, `
     <p class="foot" style="margin-top:0">${esc(message)}</p>
-    <input class="field" id="mc" type="password" autocomplete="off" placeholder="Master code" style="margin-top:12px">
-    <p class="err" id="mc-err" hidden>That's not the master code.</p>
+    <input class="field" id="mc" type="password" autocomplete="off" placeholder="Admin code" style="margin-top:12px">
+    <p class="err" id="mc-err" hidden>That's not the admin code.</p>
     <button class="primary" id="mc-go">Continue</button>`, () => {
     const go = sheet.querySelector("#mc-go"), input = sheet.querySelector("#mc");
     input.focus();
@@ -438,7 +438,7 @@ function officeListSheet() {
       }
       const e = S.store.validateOffices(t); if (e) { err.textContent = e; err.hidden = false; return; }
       const save = () => { S.store.setOffices(t); push(); closeSheet(); toast("Office list saved."); render(); };
-      if (S.org.masterHash && S.store.removesSomething(t)) askMaster("Remove offices or people?", "These changes remove an office or a person. Enter the master code to save them.", save);
+      if (S.org.masterHash && S.store.removesSomething(t)) askMaster("Remove offices or people?", "These changes remove an office or a person. Enter the admin code to save them.", save);
       else save();
     };
   }, "Save");
@@ -592,7 +592,7 @@ function settings() {
     <div class="section-title" style="margin-top:28px;font-size:15px;color:var(--muted)">Follow Us</div>
     <div class="card list">${linkRow([I.instagram, "Instagram", "https://www.instagram.com/officeswap/"]) + linkRow([I.threads, "Threads", "https://www.threads.com/@officeswap"])}</div>
     ${jpm ? "" : `<div class="section-title" style="margin-top:34px"></div><div class="card list"><button class="setting danger" id="st-delete">${I.trash}<span class="grow">Delete organization</span></button></div>
-    <p class="foot">Permanently deletes ${esc(S.org.name)} for everyone who uses its access code: offices, schedule, waitlist and photos.${S.org.masterHash ? " Needs the master code." : ""}</p>`}`;
+    <p class="foot">Permanently deletes ${esc(S.org.name)} for everyone who uses its access code: offices, schedule, waitlist and photos.${S.org.masterHash ? " Needs the admin code." : ""}</p>`}`;
 }
 
 // A Settings row that opens a link: icon, title and a chevron, like the app.
@@ -625,13 +625,13 @@ const wire = {
     const reset = root.querySelector("#st-reset");
     if (reset) reset.onclick = () => {
       const run = () => { S.store.resetToEmpty(); push(); toast("Data reset."); render(); };
-      if (S.org.masterHash) askMaster("Reset data?", "This clears the office list, schedule and waitlist for everyone. Enter the master code to continue.", run);
+      if (S.org.masterHash) askMaster("Reset data?", "This clears the office list, schedule and waitlist for everyone. Enter the admin code to continue.", run);
       else confirmSheet("Reset data?", "This clears the office list, schedule and waitlist for everyone.", "Reset", run);
     };
     const del = root.querySelector("#st-delete");
     if (del) del.onclick = () => {
       const run = async () => { try { stopTimers(); await deleteOrg(S.code); ls.set(nameKey(S.code), null); toast(`${S.org.name} was deleted.`); signOut(); } catch (e) { toast(e.message); } };
-      if (S.org.masterHash) askMaster(`Delete ${S.org.name}?`, "This permanently deletes the organization for everyone. Enter the master code to continue.", run);
+      if (S.org.masterHash) askMaster(`Delete ${S.org.name}?`, "This permanently deletes the organization for everyone. Enter the admin code to continue.", run);
       else confirmSheet(`Delete ${S.org.name}?`, "This permanently deletes the organization for everyone who uses its access code. It can't be undone.", "Delete", run);
     };
   },

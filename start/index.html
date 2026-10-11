@@ -68,14 +68,14 @@
       <label>State<input name="state" autocomplete="address-level1" maxlength="40" required></label>
       <label>ZIP code<input name="zip" autocomplete="postal-code" inputmode="numeric" maxlength="10" required></label>
     </div>
-    <label>Your email<input name="email" type="email" autocomplete="email" maxlength="254" required><small>For your receipts, and the link to reset your master code if you ever forget it.</small></label>
+    <label>Your email<input name="email" type="email" autocomplete="email" maxlength="254" required><small>For your receipts, and the link to reset your admin code if you ever forget it.</small></label>
   </fieldset>
 
   <fieldset>
-    <legend>3. Master code</legend>
-    <p class="st-hint">Your team joins with an access code we'll give you next. The master code is yours alone: it's needed to remove offices or people, reset the data, or delete the organization. We never see it.</p>
+    <legend>3. Admin code</legend>
+    <p class="st-hint">Your team joins with an access code we'll give you next. The admin code is yours alone: it's needed to remove offices or people, reset the data, or delete the organization. We never see it.</p>
     <div class="st-row">
-      <label>Master code<input name="master" type="password" autocomplete="new-password" minlength="6" required></label>
+      <label>Admin code<input name="master" type="password" autocomplete="new-password" minlength="6" required></label>
       <label>Type it again<input name="master2" type="password" autocomplete="new-password" minlength="6" required></label>
     </div>
   </fieldset>
@@ -161,7 +161,7 @@
   })();
 </script>
 <script>
-  // The master code is hashed here, the same way the app does it
+  // The admin code is hashed here, the same way the app does it
   // (PBKDF2-SHA256, 120,000 rounds, a random 16-byte salt), so only the hash
   // is ever sent.
   (function () {
@@ -183,8 +183,8 @@
       if (!v("street") || !v("city") || !v("state") || !/^\d{5}(-\d{4})?$/.test(v("zip"))) return fail("Enter the full office address, with a 5-digit ZIP code.");
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v("email"))) return fail("Enter a valid email address.");
       var master = String(f.get("master") || "").replace(/^[ \t]+|[ \t]+$/g, "");
-      if (master.length < 6) return fail("Use at least 6 characters for the master code.");
-      if (master !== String(f.get("master2") || "").replace(/^[ \t]+|[ \t]+$/g, "")) return fail("The two master codes don't match.");
+      if (master.length < 6) return fail("Use at least 6 characters for the admin code.");
+      if (master !== String(f.get("master2") || "").replace(/^[ \t]+|[ \t]+$/g, "")) return fail("The two admin codes don't match.");
       go.disabled = true; go.textContent = "One moment…";
       try {
         var h = await hashMaster(master);

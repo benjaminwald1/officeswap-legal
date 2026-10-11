@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Security · OfficeSwap</title>
-<meta name="description" content="How OfficeSwap protects your organization's data: where it's stored, who can see it, how access codes and the master code work, and how payments are handled.">
+<meta name="description" content="How OfficeSwap protects your organization's data: where it's stored, who can see it, how access codes and the admin code work, and how payments are handled.">
 <link rel="canonical" href="https://officeswap.co/security/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="OfficeSwap">
 <meta property="og:title" content="Security · OfficeSwap">
-<meta property="og:description" content="How OfficeSwap protects your organization's data: where it's stored, who can see it, how access codes and the master code work, and how payments are handled.">
+<meta property="og:description" content="How OfficeSwap protects your organization's data: where it's stored, who can see it, how access codes and the admin code work, and how payments are handled.">
 <meta property="og:url" content="https://officeswap.co/security/">
 <meta property="og:image" content="https://officeswap.co/images/og.jpg">
 <meta property="og:image:width" content="1200">
@@ -63,7 +63,7 @@
 <ul>
   <li><b>One organization, one schedule.</b> Each organization has its own access code and its own schedule. Offices are only ever shared among people in that organization.</li>
   <li><b>Access codes.</b> Anyone with your organization's access code can see and change its schedule, so share it only with your colleagues, as you would a door code.</li>
-  <li><b>Master code.</b> An administrator can set a master code. Once set, it's needed to remove offices or people, reset the schedule, or delete the organization. We only store a salted hash of it (PBKDF2 with SHA-256), never the code itself.</li>
+  <li><b>Admin code.</b> An administrator can set an admin code. Once set, it's needed to remove offices or people, reset the schedule, or delete the organization. We only store a salted hash of it (PBKDF2 with SHA-256), never the code itself.</li>
 </ul>
 
 <h2>4. Payments</h2>

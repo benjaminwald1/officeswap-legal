@@ -4,7 +4,7 @@
 // (Checkout Sessions with Stripe Elements) and this returns its client
 // secret; otherwise it returns a link to Stripe's hosted page (cards only).
 // The organization's details ride along on the subscription and are used
-// to create it once Stripe confirms (see org.js). The master code arrives
+// to create it once Stripe confirms (see org.js). The admin code arrives
 // already hashed by the browser; the code itself never leaves the page.
 
 import { CHECKOUT_API_VERSION, PLANS, SITE, TRIAL_DAYS, json, missing, priceFor, stripe } from "../_lib/billing.js";
@@ -28,7 +28,7 @@ export async function onRequestPost({ request, env }) {
   if (!name) return json({ error: "Enter your organization's name." }, 400);
   if (!street || !city || !state || !/^\d{5}(-\d{4})?$/.test(zip)) return json({ error: "Enter the full office address, with a 5-digit ZIP code." }, 400);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400);
-  if (!b64.test(masterHash) || !b64.test(masterSalt)) return json({ error: "Choose a master code." }, 400);
+  if (!b64.test(masterHash) || !b64.test(masterSalt)) return json({ error: "Choose an admin code." }, 400);
 
   const onPage = b.ui === "elements";
   const done = `${SITE}/start/done/?session_id={CHECKOUT_SESSION_ID}`;
