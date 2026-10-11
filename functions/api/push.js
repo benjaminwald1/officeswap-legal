@@ -32,6 +32,17 @@ const chatRE = /^(all|dm-[0-9a-f]{20})$/;
 const msgRE = /^[A-Za-z0-9]{10,40}$/;
 const DEMO = "DEMO";
 
+// Notification text in each language the app speaks.
+const LANGS = {
+  en: { got: "You got an office", for: (o, d) => `${o} for ${d}`, photo: "Sent a photo", voice: "Sent a voice message", locale: "en-US" },
+  es: { got: "Tienes una oficina", for: (o, d) => `${o}, el ${d}`, photo: "Envió una foto", voice: "Envió un mensaje de voz", locale: "es-ES" },
+  fr: { got: "Vous avez un bureau", for: (o, d) => `${o}, le ${d}`, photo: "A envoyé une photo", voice: "A envoyé un message vocal", locale: "fr-FR" },
+  de: { got: "Du hast ein Büro", for: (o, d) => `${o} am ${d}`, photo: "Hat ein Foto gesendet", voice: "Hat eine Sprachnachricht gesendet", locale: "de-DE" },
+  pt: { got: "Você tem um escritório", for: (o, d) => `${o} em ${d}`, photo: "Enviou uma foto", voice: "Enviou uma mensagem de voz", locale: "pt-BR" },
+  ja: { got: "オフィスが決まりました", for: (o, d) => `${d}：${o}`, photo: "写真を送信しました", voice: "ボイスメッセージを送信しました", locale: "ja-JP" },
+  zh: { got: "你有办公室了", for: (o, d) => `${d}：${o}`, photo: "发送了一张照片", voice: "发送了一条语音消息", locale: "zh-CN" },
+};
+
 export async function onRequestPost({ request, env }) {
   if (missing(env, ["FIREBASE_SERVICE_ACCOUNT"]).length) return json({ error: "Not set up." }, 503);
   let b;
@@ -42,7 +53,7 @@ export async function onRequestPost({ request, env }) {
   try {
     if (b.action === "register") {
       const name = s(b.name, 100);
-      const lang = s(b.lang, 5) === "es" ? "es" : "en";
+      const lang = LANGS[s(b.lang, 5)] ? s(b.lang, 5) : "en";
       if (!tokenRE.test(token) || !codeRE.test(code) || code === DEMO || !name) return json({ error: "Bad request." }, 400);
       const r = await firestore(env, "PATCH", `pushTokens/${token}`, { fields: toFields({ code, name, lang, updatedAt: new Date() }) });
       return r.status === 200 ? json({ ok: true }) : json({ error: "Couldn't save." }, 502);
@@ -95,9 +106,8 @@ export async function onRequestPost({ request, env }) {
       if (created.status !== 200) return json({ ok: true, sent: 0 });
       // A photo or voice note has no text: say what it is, in the phone's language.
       const short = text.length > 180 ? `${text.slice(0, 179)}…` : text;
-      const bodyFor = (lang) => kind === "image" ? "📷 " + (short || (lang === "es" ? "Envió una foto" : "Sent a photo"))
-        : kind === "voice" ? (lang === "es" ? "Envió un mensaje de voz" : "Sent a voice message")
-        : short;
+      const bodyFor = (lang) => { const L = LANGS[lang] || LANGS.en;
+        return kind === "image" ? "📷 " + (short || L.photo) : kind === "voice" ? L.voice : short; };
       const body = bodyFor("en");
       const data = { code, chat };
 
@@ -154,11 +164,10 @@ async function tokensFor(env, code, name) {
 
 // "You got an office" in the person's language.
 export function officeText(lang, officeName, date, label) {
-  const es = lang === "es";
-  const title = es ? "Tienes una oficina" : "You got an office";
-  if (!officeName || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { title, body: label };
-  const day = new Date(`${date}T12:00:00Z`).toLocaleDateString(es ? "es-ES" : "en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
-  return { title, body: es ? `${officeName}, el ${day}` : `${officeName} for ${day}` };
+  const L = LANGS[lang] || LANGS.en;
+  if (!officeName || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { title: L.got, body: label };
+  const day = new Date(`${date}T12:00:00Z`).toLocaleDateString(L.locale, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  return { title: L.got, body: L.for(officeName, day) };
 }
 
 // Firebase topic names (letters, digits, -_.~% only).
