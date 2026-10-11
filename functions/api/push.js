@@ -86,6 +86,7 @@ export async function onRequestPost({ request, env }) {
           if (await send(env, { token: t.token }, text.title, text.body, { code })) n++;
         }
         sent.push({ key, phones: n });
+        await postToChannel(env, code, `${name} got ${label}`);
       }
       return json({ ok: true, sent });
     }
@@ -142,6 +143,22 @@ export async function onRequestPost({ request, env }) {
     return json({ error: "Something went wrong." }, 500);
   }
   return json({ error: "Bad request." }, 400);
+}
+
+// Slack or Teams, if an admin connected a channel (settings/notifySecret).
+async function postToChannel(env, code, text) {
+  const r = await firestore(env, "GET", `orgs/${code}/settings/notifySecret`);
+  const url = r.status === 200 && r.data.fields && r.data.fields.url && r.data.fields.url.stringValue;
+  if (!url) return;
+  const host = new URL(url).host;
+  const message = host === "hooks.slack.com"
+    ? { text: `:office: ${text}` }
+    : host.endsWith(".webhook.office.com")
+      ? { text }
+      // Teams workflows take an Adaptive Card.
+      : { type: "message", attachments: [{ contentType: "application/vnd.microsoft.card.adaptive", content: {
+          type: "AdaptiveCard", version: "1.4", body: [{ type: "TextBlock", text, wrap: true }] } }] };
+  await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(message) }).catch(() => {});
 }
 
 // The phones registered to this person (or, with no name, anyone) in this organization.
