@@ -55,7 +55,12 @@ export async function onRequestPost({ request, env }) {
       const name = s(b.name, 100);
       const lang = LANGS[s(b.lang, 5)] ? s(b.lang, 5) : "en";
       if (!tokenRE.test(token) || !codeRE.test(code) || code === DEMO || !name) return json({ error: "Bad request." }, 400);
-      const r = await firestore(env, "PATCH", `pushTokens/${token}`, { fields: toFields({ code, name, lang, updatedAt: new Date() }) });
+      // People this phone blocked: their messages aren't sent to it.
+      const blocked = (Array.isArray(b.blocked) ? b.blocked : []).slice(0, 200).map((x) => s(x, 100)).filter(Boolean);
+      const r = await firestore(env, "PATCH", `pushTokens/${token}`, { fields: {
+        ...toFields({ code, name, lang, updatedAt: new Date() }),
+        blocked: { arrayValue: { values: blocked.map((x) => ({ stringValue: x })) } },
+      } });
       return r.status === 200 ? json({ ok: true }) : json({ error: "Couldn't save." }, 502);
     }
 
@@ -68,13 +73,37 @@ export async function onRequestPost({ request, env }) {
     if (b.action === "notify") {
       if (!codeRE.test(code) || code === DEMO || !Array.isArray(b.seats)) return json({ error: "Bad request." }, 400);
       const sent = [];
-      for (const seat of b.seats.slice(0, 20)) {
-        const visit = s(seat.visit, 64), office = s(seat.office, 64), name = s(seat.name, 100);
-        const label = s(seat.label, 120), officeName = s(seat.officeName, 100), date = s(seat.date, 10);
-        const day = Number(seat.day);
-        if (!idRE.test(visit) || !idRE.test(office) || !name || !label || !Number.isInteger(day)) continue;
-        // Skip days already past (the app counts days from 2001, at noon UTC).
-        if (day < Math.floor((Date.now() / 1000 - 978307200 + 43200) / 86400) - 1) continue;
+      let channel; // the Slack or Teams link, looked up once (null: none)
+      const today = Math.floor((Date.now() / 1000 - 978307200 + 43200) / 86400);
+      const wanted = b.seats.slice(0, 20).map((seat) => ({
+        visit: s(seat.visit, 64), office: s(seat.office, 64), day: Number(seat.day),
+      })).filter((x) => idRE.test(x.visit) && idRE.test(x.office) && Number.isInteger(x.day) && x.day >= today - 1);
+      if (!wanted.length) return json({ ok: true, sent });
+      // Only seats the schedule really has: anyone with the code can call
+      // this, so nothing a phone says is trusted. The name, office and date
+      // come from the database. The reporting phone may not have finished
+      // saving yet, so a missing seat is looked for again a little later.
+      let found = new Map();
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const schedule = await loadSchedule(env, code);
+        if (!schedule) break;
+        found = new Map();
+        for (const w of wanted) {
+          const v = schedule.visits.get(w.visit);
+          const o = schedule.offices.get(w.office);
+          if (!v || !o) continue;
+          for (let i = 0; i + 1 < v.seats.length; i += 2) {
+            if (dayOf(v.seats[i]) === w.day && v.seats[i + 1] === w.office) { found.set(w, { name: v.name, officeName: o.name }); break; }
+          }
+        }
+        if (found.size === wanted.length) break;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      for (const [w, real] of found) {
+        const { visit, office, day } = w;
+        const { name, officeName } = real;
+        const date = new Date((978307200 + day * 86400) * 1000).toISOString().slice(0, 10);
+        const label = officeText("en", officeName, date, "").body;
         const key = `${code}_${visit}_${day}_${office}`;
         const created = await firestore(env, "POST", `pushSent?documentId=${encodeURIComponent(key)}`, { fields: toFields({ sentAt: new Date() }) });
         if (created.status !== 200) continue; // already sent (409) or failed
@@ -86,7 +115,9 @@ export async function onRequestPost({ request, env }) {
           if (await send(env, { token: t.token }, text.title, text.body, { code })) n++;
         }
         sent.push({ key, phones: n });
-        await postToChannel(env, code, `${name} got ${label}`);
+        if (channel === undefined) channel = await channelURL(env, code);
+        // In English, not the reporting phone's language (label is written in it).
+        if (channel) await postToChannel(channel, `${name} got ${label}`);
       }
       return json({ ok: true, sent });
     }
@@ -116,14 +147,21 @@ export async function onRequestPost({ request, env }) {
         const org = await getOrg(env, code);
         const orgName = (org && org.fields && org.fields.name && org.fields.name.stringValue) || "";
         const title = orgName ? `${from} · ${orgName}` : from;
-        const condition = `'${topic("o", code)}' in topics && !('${await personTopic(code, from)}' in topics)`;
-        if (await send(env, { condition }, title, body, data, chat)) return json({ ok: true, sent: "topic" });
-        // Topic sends unavailable: phone by phone, as many as one request allows.
-        let n = 0;
-        for (const t of (await tokensFor(env, code, null)).filter((t) => t.name !== from && t.token !== token).slice(0, 40)) {
-          if (await send(env, { token: t.token }, title, bodyFor(t.lang), data, chat)) n++;
+        // Phone by phone when the organization is small enough (each in its
+        // language, skipping anyone who blocked the sender); otherwise to the
+        // organization's topic, minus the sender.
+        const all = (await tokensFor(env, code, null)).filter((t) => t.name !== from && t.token !== token);
+        if (all.length <= 40) {
+          let n = 0;
+          for (const t of all) {
+            if (t.blocked.includes(from)) continue;
+            if (await send(env, { token: t.token }, title, bodyFor(t.lang), data, chat)) n++;
+          }
+          return json({ ok: true, sent: n });
         }
-        return json({ ok: true, sent: n });
+        const condition = `'${topic("o", code)}' in topics && !('${await personTopic(code, from)}' in topics)`;
+        await send(env, { condition }, title, body, data, chat);
+        return json({ ok: true, sent: "topic" });
       }
 
       const chatDoc = await firestore(env, "GET", path);
@@ -133,7 +171,7 @@ export async function onRequestPost({ request, env }) {
       let n = 0;
       for (const name of names.filter((x) => x !== from)) {
         for (const t of await tokensFor(env, code, name)) {
-          if (t.token === token) continue;
+          if (t.token === token || t.blocked.includes(from)) continue;
           if (await send(env, { token: t.token }, from, bodyFor(t.lang), data, chat)) n++;
         }
       }
@@ -145,14 +183,57 @@ export async function onRequestPost({ request, env }) {
   return json({ error: "Bad request." }, 400);
 }
 
+// The app's day number for a Swift date (seconds since 2001, counted at noon UTC).
+const dayOf = (swift) => Math.floor((Number(swift) + 43200) / 86400);
+
+// The organization's offices and requests (this week and later), from the
+// split schedule (see app/shards.js) or the old single document, in one read
+// for the layout and one for everything in it.
+async function loadSchedule(env, code) {
+  const parse = (f) => { try { return JSON.parse(f && f.json && f.json.stringValue); } catch { return null; } };
+  const meta = await firestore(env, "GET", `orgs/${code}/state/meta`);
+  let docs = [];
+  if (meta.status === 200) {
+    const m = parse(meta.data.fields);
+    if (!m) return null;
+    const ids = [];
+    for (let i = 0; i < (m.chunks || 0); i++) ids.push(`o${i}`);
+    const thisWeek = (() => { const n = Math.floor((Date.now() / 1000 - 978307200 + 43200) / 86400); return n - (((n % 7) + 7) % 7) - 7; })();
+    for (const [week, n] of Object.entries(m.weeks || {})) {
+      if (Number(week.slice(1)) < thisWeek) continue;
+      for (let j = 0; j < n; j++) ids.push(`${week}b${j}`);
+    }
+    const base = `projects/${JSON.parse(env.FIREBASE_SERVICE_ACCOUNT).project_id}/databases/(default)/documents/orgs/${code}/state`;
+    const r = await firestore(env, "POST", ":batchGet", { documents: ids.map((id) => `${base}/${id}`) });
+    if (r.status !== 200 || !Array.isArray(r.data)) return null;
+    docs = r.data.filter((x) => x.found).map((x) => parse(x.found.fields)).filter(Boolean);
+  } else {
+    const old = await firestore(env, "GET", `orgs/${code}/state/current`);
+    if (old.status !== 200) return null;
+    const st = parse(old.data.fields);
+    if (st) docs = [st.offices || [], { visits: st.visits || [] }];
+  }
+  const offices = new Map(), visits = new Map();
+  for (const d of docs) {
+    if (Array.isArray(d)) for (const o of d) offices.set(o.id, o);
+    else for (const v of d.visits || []) visits.set(v.id, v);
+  }
+  return { offices, visits };
+}
+
 // Slack or Teams, if an admin connected a channel (settings/notifySecret).
-async function postToChannel(env, code, text) {
+async function channelURL(env, code) {
   const r = await firestore(env, "GET", `orgs/${code}/settings/notifySecret`);
-  const url = r.status === 200 && r.data.fields && r.data.fields.url && r.data.fields.url.stringValue;
-  if (!url) return;
-  const host = new URL(url).host;
+  return (r.status === 200 && r.data.fields && r.data.fields.url && r.data.fields.url.stringValue) || null;
+}
+async function postToChannel(url, text) {
+  let host;
+  try { host = new URL(url).host; } catch { return; }
+  // Names and office names come from the phones: in Slack, <, > and & would
+  // make links and mentions (<!channel>), so they're sent as plain text.
+  const plain = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const message = host === "hooks.slack.com"
-    ? { text: `:office: ${text}` }
+    ? { text: `:office: ${plain}` }
     : host.endsWith(".webhook.office.com")
       ? { text }
       // Teams workflows take an Adaptive Card.
@@ -175,7 +256,8 @@ async function tokensFor(env, code, name) {
   if (r.status !== 200 || !Array.isArray(r.data)) return [];
   return r.data.filter((row) => row.document).map((row) => {
     const f = row.document.fields || {};
-    return { token: row.document.name.split("/").pop(), name: f.name && f.name.stringValue, lang: (f.lang && f.lang.stringValue) || "en" };
+    const blocked = ((f.blocked && f.blocked.arrayValue && f.blocked.arrayValue.values) || []).map((v) => v.stringValue);
+    return { token: row.document.name.split("/").pop(), name: f.name && f.name.stringValue, lang: (f.lang && f.lang.stringValue) || "en", blocked };
   });
 }
 

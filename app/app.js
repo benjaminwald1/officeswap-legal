@@ -4,8 +4,8 @@
 // Changes go into the same shared schedule every phone uses.
 
 import { Store, Days, officeCount } from "./engine.js?v=4";
-import { getOrg, getPhotos, deleteOrg } from "./cloud.js?v=2";
-import { Remote } from "./sync.js?v=1";
+import { getOrg, getPhotos, deleteOrg } from "./cloud.js?v=3";
+import { Remote } from "./sync.js?v=2";
 
 const root = document.getElementById("root");
 const sheet = document.getElementById("sheet");

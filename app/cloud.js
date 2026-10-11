@@ -184,6 +184,28 @@ export async function deleteOrg(code) {
     for (const d of (r.data && r.data.documents) || []) await call("DELETE", `orgs/${code}/photos/${d.name.split("/").pop()}`);
     pageToken = (r.data && r.data.nextPageToken) || "";
   } while (pageToken);
+  // Everything else kept with it (as the app deletes it): what each office
+  // has, the Slack/Teams link, and every chat with its messages and media.
+  const each = async (path, fn) => {
+    let token = "";
+    do {
+      const r = await call("GET", `${path}?pageSize=100${token ? `&pageToken=${token}` : ""}`);
+      for (const d of (r.data && r.data.documents) || []) await fn(d);
+      token = (r.data && r.data.nextPageToken) || "";
+    } while (token);
+  };
+  await each(`orgs/${code}/offices`, (d) => call("DELETE", `orgs/${code}/offices/${d.name.split("/").pop()}`));
+  await call("DELETE", `orgs/${code}/settings/notify`);
+  await call("DELETE", `orgs/${code}/settings/notifySecret`);
+  await each(`orgs/${code}/chats`, async (chat) => {
+    const id = chat.name.split("/").pop();
+    await each(`orgs/${code}/chats/${id}/messages`, async (m) => {
+      const media = m.fields && m.fields.media && m.fields.media.stringValue;
+      if (media) await call("DELETE", `orgs/${code}/chats/${id}/media/${media}`);
+      await call("DELETE", `orgs/${code}/chats/${id}/messages/${m.name.split("/").pop()}`);
+    });
+    await call("DELETE", `orgs/${code}/chats/${id}`);
+  });
   // Every document of the schedule, old weeks included, then its layout.
   const meta = (await getDocs(code, [META]))[META];
   if (meta && meta.json) {
